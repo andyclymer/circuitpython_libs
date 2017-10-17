@@ -1,2 +1,3 @@
-# circuitpython_libs
-Libraries for use with CircuitPython
+# CircuitPython Libraries
+
+Helper libraries for use with [CircuitPython](https://circuitpython.readthedocs.io)
