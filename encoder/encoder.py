@@ -6,15 +6,18 @@ class Encoder:
     CircuitPython Rotary Encoder (without interrupts)
     2017_10_16 Andy Clymer
     
+    import board
     from encoder import Encoder
-    e = Encoder(board.D0, board.D2)
+    def movedUp():
+        print("Up!")
+    def movedDown():
+        print("Down!")
+    e = Encoder(board.D0, board.D4, upCallback=movedUp, downCallback=movedDown)
     while True:
-        encoderValue = e.read()
-        if encoderValue:
-            print(encoderValue)
+        e.update()
     """
     
-    def __init__(self, pin1, pin2):
+    def __init__(self, pin1, pin2, upCallback=None, downCallback=None):
         # Init pins
         self.d1 = DigitalInOut(pin1)
         self.d1.direction = Direction.INPUT
@@ -22,6 +25,9 @@ class Encoder:
         self.d2 = DigitalInOut(pin2)
         self.d2.direction = Direction.INPUT
         self.d2.pull = Pull.UP
+        # Callbacks
+        self.upCallback = upCallback
+        self.downCallback = downCallback
         # Values for comparison
         self.prev1 = 0
         self.prev2 = 0
@@ -35,7 +41,7 @@ class Encoder:
             (0, 0): {(0, 1):1, (0, 0):0, (1, 0):-1, (1, 1):2},
             (0, 1): {(1, 1):1, (0, 1):0, (0, 0):-1, (1, 0):2}}
             
-    def read(self):
+    def update(self):
         self.new1 = self.d1.value
         self.new2 = self.d2.value
         # Pin values changed:
@@ -51,8 +57,8 @@ class Encoder:
             s = sum(self.lastFewDirs)
             if s == 4:
                 self.lastFewDirs = [0, 0, 0, 0]
-                return 1
+                if self.upCallback: self.upCallback()
             elif s == -4:
                 self.lastFewDirs = [0, 0, 0, 0]
-                return -1
+                if self.downCallback: self.downCallback()
         return None
