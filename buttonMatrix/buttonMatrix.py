@@ -1,5 +1,6 @@
 import board
 from digitalio import DigitalInOut, Direction, Pull
+import time
 
 class Button(object):
     
@@ -12,22 +13,40 @@ class Button(object):
         self.holdCbk = None
         self.id = None
         self.state = False
-        self.tSinceChange = 0
-        self.tSinceRepeat = 0
+        self.lastChangeTime = 0
+        self.lastRepeatTIme = 0
+        self.holding = False
+    
+    def info(self):
+        holdTime = time.monotonic() - self.lastChangeTime
+        othersDown = [b.id for b in self.parent._buttons if b.state if not b.id == self.id]
+        return dict(buttonID=self.id, repeating=self.holding, holdTime=holdTime, othersDown=othersDown)
         
     def update(self):
-        # Find if up, down, changed. If down for a length of time, call the hold
-        os = self.state
-        self.sPin.value = True
-        ns = self.rPin.value
+        
+        os = self.state # hold the old state
+        self.sPin.value = True # Turn on the send pin
+        ns = self.rPin.value # Check the new state
         if not os == ns:
-            i = dict(buttonID=self.id)
+            self.lastChangeTime = self.lastRepeatTime = time.monotonic()
+            self.holding = False
             if ns == True:
-                if self.downCback: self.downCback(info=i)
-                if self.parent.downCback: self.parent.downCback(info=i)
+                if self.downCback: self.downCback(info=self.info())
+                if self.parent.downCback: self.parent.downCback(info=self.info())
             else:
                 if self.upCback: self.upCback(info=i)
-                if self.parent.upCback: self.parent.upCback(info=i)
+                if self.parent.upCback: self.parent.upCback(info=self.info())
+        elif ns:
+            if not self.holding:
+                if time.monotonic() - self.lastChangeTime >= self.parent.holdDelayTime: 
+                    if self.holdCbk: self.holdCbk(info=self.info())
+                    if self.parent.holdCbk: self.parent.holdCbk(info=self.info())
+                    self.holding = True
+            else:
+                if time.monotonic() - self.lastRepeatTime >= self.parent.holdRepeatTime: 
+                    self.lastRepeatTime = time.monotonic()
+                    if self.downCback: self.downCback(info=self.info())
+                    if self.parent.downCback: self.parent.downCback(info=self.info())
         self.state = ns
         self.sPin.value = False
         
@@ -50,9 +69,8 @@ class ButtonMatrix:
             keyDownCallback=None, 
             keyUpCallback=None, 
             keyHoldCallback=None, 
-            debounceTime=0, 
-            holdDelayTime=1000, 
-            holdRepeatTime=250):
+            holdDelayTime=1, 
+            holdRepeatTime=0.25):
         # Cbks
         self.downCback = keyDownCallback
         self.upCback = keyUpCallback
@@ -60,8 +78,7 @@ class ButtonMatrix:
         # Buttons and pins
         self._buttons = [] # List of button objects
         self._pinMap = {} # Each pin name, mapped to a pin object, for easier button setup
-        # Debounce and hold times
-        self.debounceTime = debounceTime 
+        # Hold and repeat times
         self.holdDelayTime = holdDelayTime 
         self.holdRepeatTime = holdRepeatTime
         # Initialize
